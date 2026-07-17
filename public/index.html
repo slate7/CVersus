@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CVersus</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="screen-landing" class="screen">
+    <h1>CVersus</h1>
+    <p>1-on-1 video calls. Click below and get matched with whoever joins next.</p>
+    <button id="joinBtn" class="primary">Join call</button>
+  </div>
+
+  <div id="screen-getting-media" class="screen hidden">
+    <h1>CVersus</h1>
+    <p>Requesting camera and microphone&hellip;</p>
+  </div>
+
+  <div id="screen-media-error" class="screen hidden">
+    <h1>CVersus</h1>
+    <p>Camera and microphone access is required to join a call.</p>
+    <button id="retryBtn" class="primary">Try again</button>
+  </div>
+
+  <div id="screen-waiting" class="screen hidden">
+    <h1>CVersus</h1>
+    <p>Waiting for someone to join&hellip;</p>
+    <video id="waitingVideo" autoplay muted playsinline></video>
+    <button id="cancelBtn">Cancel</button>
+  </div>
+
+  <div id="screen-in-call" class="screen hidden">
+    <div id="videos">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+    <div id="controls">
+      <button id="muteBtn">Mute</button>
+      <button id="cameraBtn">Camera off</button>
+      <button id="hangupBtn" class="danger">Hang up</button>
+    </div>
+  </div>
+
+  <div id="screen-peer-left" class="screen hidden">
+    <h1>CVersus</h1>
+    <p>They left.</p>
+    <button id="findNewBtn" class="primary">Find new call</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
