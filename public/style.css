@@ -38,6 +38,19 @@ p {
   color: #9aa7b5;
 }
 
+p.error {
+  color: #f87171;
+}
+
+p.error.hidden {
+  display: none;
+}
+
+#resumeFileName {
+  color: #6ee7b7;
+  min-height: 1.2em;
+}
+
 button {
   font-size: 1rem;
   padding: 12px 28px;
@@ -52,11 +65,16 @@ button:hover {
   background: #354153;
 }
 
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 button.primary {
   background: #2563eb;
 }
 
-button.primary:hover {
+button.primary:hover:not(:disabled) {
   background: #1d4ed8;
 }
 
@@ -68,32 +86,208 @@ button.danger:hover {
   background: #b91c1c;
 }
 
-video {
+#waitingVideo {
   width: 100%;
+  max-width: 420px;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   background: #000;
   border-radius: 12px;
 }
 
-#waitingVideo {
-  max-width: 420px;
+/* ---------- In-call: split resume view ---------- */
+
+#screen-in-call {
+  position: fixed;
+  inset: 0;
+  max-width: none;
+  padding: 0;
+  display: block;
 }
 
-#videos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  width: 100%;
+#screen-in-call.hidden {
+  display: none;
 }
+
+#call-view {
+  display: flex;
+  height: 100%;
+}
+
+.pdf-half {
+  flex: 1 1 50%;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  background: #d7dbe0;
+}
+
+.pdf-half + .pdf-half {
+  border-left: 1px solid #9aa2ac;
+}
+
+.pdf-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.pdf-page {
+  position: relative;
+  margin: 12px auto;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.link-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.link-layer a {
+  position: absolute;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.link-layer a:hover {
+  background: rgba(37, 99, 235, 0.15);
+  outline: 1px solid rgba(37, 99, 235, 0.5);
+}
+
+.pdf-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(20, 26, 34, 0.85);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.pdf-toolbar button {
+  padding: 4px 10px;
+  font-size: 0.9rem;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.pdf-toolbar button:hover {
+  background: #354153;
+}
+
+.pdf-toolbar span {
+  font-size: 0.8rem;
+  color: #9aa7b5;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* ---------- Floating video tiles ---------- */
+
+.video-tile {
+  position: absolute;
+  z-index: 10;
+  width: 240px;
+  aspect-ratio: 4 / 3;
+  right: 16px;
+  bottom: 16px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  cursor: grab;
+  touch-action: none;
+  background: #000;
+}
+
+.video-tile:active {
+  cursor: grabbing;
+}
+
+.video-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.tile-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.6) 50%);
+  border-bottom-right-radius: 10px;
+}
+
+/* ---------- Icon control bar ---------- */
 
 #controls {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
   display: flex;
   gap: 12px;
+  background: rgba(20, 26, 34, 0.85);
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
+.icon-btn {
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a3444;
+}
+
+.icon-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.icon-btn .slash {
+  display: none;
+}
+
+.icon-btn.off .slash {
+  display: block;
+}
+
+.icon-btn.off {
+  background: #4b5563;
+}
+
+.icon-btn.danger {
+  background: #dc2626;
+}
+
+.icon-btn.danger:hover {
+  background: #b91c1c;
 }
 
 @media (max-width: 600px) {
-  #videos {
-    grid-template-columns: 1fr;
+  #call-view {
+    flex-direction: column;
+  }
+
+  .pdf-half + .pdf-half {
+    border-left: none;
+    border-top: 1px solid #9aa2ac;
+  }
+
+  .video-tile {
+    width: 140px;
   }
 }
