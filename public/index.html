@@ -45,14 +45,54 @@
   <div id="screen-in-call" class="screen hidden">
     <div id="call-view">
       <section class="pdf-half" id="myHalf">
+        <div class="video-zone"></div>
+        <div class="resume-area" id="myResumeArea"></div>
         <div class="video-tile" id="localTile">
           <video id="localVideo" autoplay muted playsinline></video>
+          <div class="tile-label">You</div>
+          <div class="tile-status">
+            <span class="status-icon mic-off hidden" title="Muted">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                <path d="M5 10v1a7 7 0 0 0 14 0v-1"></path>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4" y1="4" x2="20" y2="20"></line>
+              </svg>
+            </span>
+            <span class="status-icon cam-off hidden" title="Camera off">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="6" width="14" height="12" rx="2"></rect>
+                <path d="M16 10.5 22 7v10l-6-3.5"></path>
+                <line x1="3" y1="3" x2="21" y2="21"></line>
+              </svg>
+            </span>
+          </div>
           <div class="tile-resize"></div>
         </div>
       </section>
       <section class="pdf-half" id="peerHalf">
+        <div class="video-zone"></div>
+        <div class="resume-area" id="peerResumeArea"></div>
         <div class="video-tile" id="remoteTile">
           <video id="remoteVideo" autoplay playsinline></video>
+          <div class="tile-label">Your match</div>
+          <div class="tile-status">
+            <span class="status-icon mic-off hidden" title="Muted">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+                <path d="M5 10v1a7 7 0 0 0 14 0v-1"></path>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4" y1="4" x2="20" y2="20"></line>
+              </svg>
+            </span>
+            <span class="status-icon cam-off hidden" title="Camera off">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="6" width="14" height="12" rx="2"></rect>
+                <path d="M16 10.5 22 7v10l-6-3.5"></path>
+                <line x1="3" y1="3" x2="21" y2="21"></line>
+              </svg>
+            </span>
+          </div>
           <div class="tile-resize"></div>
         </div>
       </section>

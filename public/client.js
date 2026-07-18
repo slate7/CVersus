@@ -33,6 +33,8 @@ const uploadError = document.getElementById('uploadError');
 const continueBtn = document.getElementById('continueBtn');
 const myHalf = document.getElementById('myHalf');
 const peerHalf = document.getElementById('peerHalf');
+const myResumeArea = document.getElementById('myResumeArea');
+const peerResumeArea = document.getElementById('peerResumeArea');
 const localTile = document.getElementById('localTile');
 const remoteTile = document.getElementById('remoteTile');
 
@@ -54,9 +56,36 @@ function clearUploadError() {
 function resetTile(tile) {
   tile.style.left = '';
   tile.style.top = '';
-  tile.style.right = '16px';
-  tile.style.bottom = '16px';
+  tile.style.right = '';
+  tile.style.bottom = '';
   tile.style.width = '';
+}
+
+// Dock the tile large and centered in its half's top video zone
+function dockTile(tile, half) {
+  const zone = half.querySelector('.video-zone');
+  const zoneH = zone.offsetHeight;
+  const w = Math.max(160, Math.min(half.clientWidth - 32, (zoneH - 24) * (4 / 3), 560));
+  tile.style.width = `${w}px`;
+  tile.style.left = `${(half.clientWidth - w) / 2}px`;
+  tile.style.top = `${Math.max(12, (zoneH - w * 0.75) / 2)}px`;
+  tile.style.right = 'auto';
+  tile.style.bottom = 'auto';
+}
+
+function setTileStatus(tile, mic, cam) {
+  tile.querySelector('.mic-off').classList.toggle('hidden', mic);
+  tile.querySelector('.cam-off').classList.toggle('hidden', cam);
+}
+
+function sendMediaState() {
+  if (!localStream) return;
+  const audio = localStream.getAudioTracks()[0];
+  const video = localStream.getVideoTracks()[0];
+  const mic = audio ? audio.enabled : true;
+  const cam = video ? video.enabled : true;
+  setTileStatus(localTile, mic, cam);
+  socket.emit('media-state', { mic, cam });
 }
 
 function resetCall() {
@@ -76,6 +105,8 @@ function resetCall() {
   }
   resetTile(localTile);
   resetTile(remoteTile);
+  setTileStatus(localTile, true, true);
+  setTileStatus(remoteTile, true, true);
 }
 
 function stopMedia() {
@@ -87,13 +118,21 @@ function stopMedia() {
   waitingVideo.srcObject = null;
 }
 
+// Derive button state from the actual tracks: the find-new-call path keeps the
+// live (possibly muted) stream, so the UI must reflect reality, not defaults.
 function resetControls() {
-  muteBtn.classList.remove('off');
-  muteBtn.setAttribute('aria-label', 'Mute microphone');
-  muteBtn.title = 'Mute microphone';
-  cameraBtn.classList.remove('off');
-  cameraBtn.setAttribute('aria-label', 'Turn camera off');
-  cameraBtn.title = 'Turn camera off';
+  const audio = localStream && localStream.getAudioTracks()[0];
+  const video = localStream && localStream.getVideoTracks()[0];
+  const mic = audio ? audio.enabled : true;
+  const cam = video ? video.enabled : true;
+  muteBtn.classList.toggle('off', !mic);
+  const micLabel = mic ? 'Mute microphone' : 'Unmute microphone';
+  muteBtn.setAttribute('aria-label', micLabel);
+  muteBtn.title = micLabel;
+  cameraBtn.classList.toggle('off', !cam);
+  const camLabel = cam ? 'Turn camera off' : 'Turn camera on';
+  cameraBtn.setAttribute('aria-label', camLabel);
+  cameraBtn.title = camLabel;
 }
 
 // Every path into matchmaking goes through here: re-sending the stored resume
@@ -196,6 +235,7 @@ muteBtn.addEventListener('click', () => {
   const label = track.enabled ? 'Mute microphone' : 'Unmute microphone';
   muteBtn.setAttribute('aria-label', label);
   muteBtn.title = label;
+  sendMediaState();
 });
 
 cameraBtn.addEventListener('click', () => {
@@ -206,6 +246,7 @@ cameraBtn.addEventListener('click', () => {
   const label = track.enabled ? 'Turn camera off' : 'Turn camera on';
   cameraBtn.setAttribute('aria-label', label);
   cameraBtn.title = label;
+  sendMediaState();
 });
 
 // ---------- Draggable / resizable video tiles (local only) ----------
@@ -305,8 +346,11 @@ socket.on('matched', async ({ initiator }) => {
   inCall = true;
   // Show the call screen first so the halves have real dimensions for fit-to-width
   setState('in-call');
+  dockTile(localTile, myHalf);
+  dockTile(remoteTile, peerHalf);
+  sendMediaState();
 
-  myViewer = createPdfViewer(myHalf);
+  myViewer = createPdfViewer(myResumeArea);
   // .slice(0): pdf.js transfers the buffer to its worker and detaches it
   myViewer.load(myResumeBytes.slice(0)).catch((err) => console.error('own resume render failed:', err));
 
@@ -333,8 +377,13 @@ socket.on('matched', async ({ initiator }) => {
 
 socket.on('peer-resume', (bytes) => {
   if (!inCall) return;
-  peerViewer = createPdfViewer(peerHalf);
+  peerViewer = createPdfViewer(peerResumeArea);
   peerViewer.load(bytes).catch((err) => console.error('peer resume render failed:', err));
+});
+
+socket.on('media-state', ({ mic, cam }) => {
+  if (!inCall) return;
+  setTileStatus(remoteTile, !!mic, !!cam);
 });
 
 socket.on('signal', async ({ description, candidate }) => {

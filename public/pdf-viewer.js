@@ -3,6 +3,7 @@ import * as pdfjsLib from '/pdfjs/pdf.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.mjs';
 
 const PAGE_MARGIN = 12;
+const CARD_MAX_WIDTH = 580;
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 4.0;
 
@@ -40,6 +41,11 @@ export function createPdfViewer(rootEl) {
 
   function updateLabel() {
     zoomLabel.textContent = `${Math.round((scale / fitScale) * 100)}%`;
+  }
+
+  function computeFitScale(pageWidth) {
+    const cardWidth = Math.min(scrollEl.clientWidth, CARD_MAX_WIDTH);
+    return Math.max(0.1, (cardWidth - 2 * PAGE_MARGIN) / pageWidth);
   }
 
   async function renderAllPages() {
@@ -133,8 +139,7 @@ export function createPdfViewer(rootEl) {
     if (!pdfDoc) return;
     pdfDoc.getPage(1).then((page) => {
       if (destroyed) return;
-      const w = page.getViewport({ scale: 1 }).width;
-      fitScale = Math.max(0.1, (scrollEl.clientWidth - 2 * PAGE_MARGIN) / w);
+      fitScale = computeFitScale(page.getViewport({ scale: 1 }).width);
       setScale(fitScale);
       updateLabel();
     });
@@ -164,8 +169,7 @@ export function createPdfViewer(rootEl) {
       if (destroyed) return;
       const page = await pdfDoc.getPage(1);
       if (destroyed) return;
-      const w = page.getViewport({ scale: 1 }).width;
-      fitScale = Math.max(0.1, (scrollEl.clientWidth - 2 * PAGE_MARGIN) / w);
+      fitScale = computeFitScale(page.getViewport({ scale: 1 }).width);
       scale = fitScale;
       updateLabel();
       await renderAllPages();

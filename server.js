@@ -66,6 +66,16 @@ io.on('connection', (socket) => {
     if (partnerId) io.to(partnerId).emit('signal', payload);
   });
 
+  socket.on('media-state', (payload) => {
+    const partnerId = partnerOf.get(socket.id);
+    if (partnerId) {
+      io.to(partnerId).emit('media-state', {
+        mic: !!(payload && payload.mic),
+        cam: !!(payload && payload.cam),
+      });
+    }
+  });
+
   const cleanup = () => {
     if (waitingSocket === socket) {
       waitingSocket = null;
