@@ -1,9 +1,12 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
+const { scoreResume } = require('./scorer');
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
+const SCORE_CACHE_LIMIT = 100;
 
 const app = express();
 const server = http.createServer(app);
@@ -18,11 +21,41 @@ app.use('/pdfjs', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dis
 let waitingSocket = null;
 const partnerOf = new Map(); // socket.id -> partner socket.id
 const resumes = new Map(); // socket.id -> Buffer (uploaded resume PDF)
+const profiles = new Map(); // socket.id -> { name }
+const ranks = new Map(); // socket.id -> scorer result
+
+// Scoring is deterministic and pure, so identical bytes never need rescoring.
+const scoreCache = new Map(); // sha256 hex -> scorer result
+
+function sanitizeName(raw) {
+  const name = String(raw || '').trim().replace(/[<>]/g, '').slice(0, 24);
+  return name || 'Candidate';
+}
+
+const UNRANKED = { score: 0, tier: null, division: null, cssClass: 'tier-unranked', label: 'Unranked', breakdown: null, unscoreable: true };
+
+function publicProfile(id) {
+  const profile = profiles.get(id);
+  const rank = ranks.get(id) || UNRANKED;
+  return {
+    name: (profile && profile.name) || 'Candidate',
+    score: rank.score,
+    tier: rank.tier,
+    division: rank.division,
+    cssClass: rank.cssClass,
+    label: rank.label,
+    unscoreable: rank.unscoreable,
+  };
+}
 
 io.on('connection', (socket) => {
   console.log(`connected: ${socket.id}`);
 
-  socket.on('resume', (data, ack) => {
+  socket.on('hello', (payload) => {
+    profiles.set(socket.id, { name: sanitizeName(payload && payload.name) });
+  });
+
+  socket.on('resume', async (data, ack) => {
     const reply = typeof ack === 'function' ? ack : () => {};
     const buf = Buffer.isBuffer(data) ? data : data instanceof ArrayBuffer ? Buffer.from(data) : null;
     if (!buf) return reply({ ok: false, error: 'Invalid upload.' });
@@ -31,7 +64,27 @@ io.on('connection', (socket) => {
       return reply({ ok: false, error: 'File is not a valid PDF.' });
     }
     resumes.set(socket.id, buf);
-    reply({ ok: true });
+
+    const hash = crypto.createHash('sha256').update(buf).digest('hex');
+    let result = scoreCache.get(hash);
+    if (!result) {
+      try {
+        result = await scoreResume(buf);
+      } catch (err) {
+        console.error('scoring failed:', err);
+        result = UNRANKED;
+      }
+      if (scoreCache.size >= SCORE_CACHE_LIMIT) {
+        scoreCache.delete(scoreCache.keys().next().value);
+      }
+      scoreCache.set(hash, result);
+    }
+
+    // A newer upload may have landed while we were scoring; don't clobber it.
+    if (resumes.get(socket.id) === buf) {
+      ranks.set(socket.id, result);
+    }
+    reply({ ok: true, ...result });
   });
 
   socket.on('join', () => {
@@ -54,9 +107,11 @@ io.on('connection', (socket) => {
       // The one who was waiting creates the WebRTC offer
       partner.emit('matched', { initiator: true });
       socket.emit('matched', { initiator: false });
-      // Per-connection ordering guarantees 'matched' arrives before 'peer-resume'
+      // Per-connection ordering guarantees 'matched' arrives before these
       partner.emit('peer-resume', resumes.get(socket.id));
       socket.emit('peer-resume', resumes.get(partner.id));
+      partner.emit('peer-profile', publicProfile(socket.id));
+      socket.emit('peer-profile', publicProfile(partner.id));
       console.log(`matched: ${partner.id} <-> ${socket.id}`);
     }
   });
@@ -94,6 +149,8 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     cleanup();
     resumes.delete(socket.id);
+    profiles.delete(socket.id);
+    ranks.delete(socket.id);
     console.log(`disconnected: ${socket.id}`);
   });
 });

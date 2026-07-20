@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header id="navbar">
+    <div class="nav-logo">CVersus</div>
+    <div class="nav-profile">
+      <span id="navAvatar" class="avatar"></span>
+      <span id="navName"></span>
+      <span id="navTier" class="tier-badge tier-unranked">Unranked</span>
+      <span id="navScore" class="nav-score"></span>
+    </div>
+  </header>
+
   <div id="screen-landing" class="screen">
     <h1>CVersus</h1>
     <p>Resume-versus-resume video calls. Upload your resume, get matched, and talk it out side by side.</p>
@@ -20,6 +30,14 @@
     <button id="chooseResumeBtn">Choose PDF</button>
     <p id="resumeFileName"></p>
     <p id="uploadError" class="error hidden"></p>
+
+    <div id="scoreReveal" class="hidden">
+      <div id="scoreNumber">0</div>
+      <span id="scoreTierBadge" class="tier-badge tier-unranked">Unranked</span>
+      <div id="scoreBreakdown"></div>
+      <p id="scoreNote" class="error hidden"></p>
+    </div>
+
     <button id="continueBtn" class="primary" disabled>Continue</button>
     <button id="uploadBackBtn">Back</button>
   </div>
@@ -38,6 +56,7 @@
   <div id="screen-waiting" class="screen hidden">
     <h1>CVersus</h1>
     <p>Waiting for someone to join&hellip;</p>
+    <p id="waitingRank"></p>
     <video id="waitingVideo" autoplay muted playsinline></video>
     <button id="cancelBtn">Cancel</button>
   </div>
@@ -49,7 +68,10 @@
         <div class="resume-area" id="myResumeArea"></div>
         <div class="video-tile" id="localTile">
           <video id="localVideo" autoplay muted playsinline></video>
-          <div class="tile-label">You</div>
+          <div class="tile-label">
+            <span class="tile-name">You</span>
+            <span class="tile-tier tier-badge hidden"></span>
+          </div>
           <div class="tile-status">
             <span class="status-icon mic-off hidden" title="Muted">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -75,7 +97,10 @@
         <div class="resume-area" id="peerResumeArea"></div>
         <div class="video-tile" id="remoteTile">
           <video id="remoteVideo" autoplay playsinline></video>
-          <div class="tile-label">Your match</div>
+          <div class="tile-label">
+            <span class="tile-name">Your match</span>
+            <span class="tile-tier tier-badge hidden"></span>
+          </div>
           <div class="tile-status">
             <span class="status-icon mic-off hidden" title="Muted">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -11,6 +11,35 @@ let myResumeName = '';
 let myViewer = null;
 let peerViewer = null;
 let inCall = false;
+let myRank = null; // { score, tier, division, label, breakdown, unscoreable } or null (unranked)
+
+// ---------- Anonymous identity, persisted in this browser ----------
+
+function loadProfile() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('cversus-profile'));
+    if (stored && stored.id && stored.name) return stored;
+  } catch (err) {
+    // fall through to generate a fresh one
+  }
+  const profile = {
+    id: crypto.randomUUID(),
+    name: `Candidate#${1000 + Math.floor(Math.random() * 9000)}`,
+  };
+  localStorage.setItem('cversus-profile', JSON.stringify(profile));
+  return profile;
+}
+
+function loadStoredRank() {
+  try {
+    return JSON.parse(localStorage.getItem('cversus-rank'));
+  } catch (err) {
+    return null;
+  }
+}
+
+const myProfile = loadProfile();
+myRank = loadStoredRank();
 
 const screens = [
   'landing',
@@ -37,6 +66,29 @@ const myResumeArea = document.getElementById('myResumeArea');
 const peerResumeArea = document.getElementById('peerResumeArea');
 const localTile = document.getElementById('localTile');
 const remoteTile = document.getElementById('remoteTile');
+const navAvatar = document.getElementById('navAvatar');
+const navName = document.getElementById('navName');
+const navTier = document.getElementById('navTier');
+const navScore = document.getElementById('navScore');
+const waitingRank = document.getElementById('waitingRank');
+const scoreReveal = document.getElementById('scoreReveal');
+const scoreNumber = document.getElementById('scoreNumber');
+const scoreTierBadge = document.getElementById('scoreTierBadge');
+const scoreBreakdown = document.getElementById('scoreBreakdown');
+const scoreNote = document.getElementById('scoreNote');
+
+const TIER_CLASSES = ['tier-bronze', 'tier-silver', 'tier-gold', 'tier-platinum', 'tier-diamond', 'tier-champion', 'tier-unranked'];
+const BREAKDOWN_LABELS = [
+  ['open_source', 'Open source', 35],
+  ['self_projects', 'Projects', 25],
+  ['production', 'Experience', 40],
+  ['technical_skills', 'Skills', 10],
+];
+
+function applyTierClass(el, cssClass) {
+  el.classList.remove(...TIER_CLASSES);
+  el.classList.add(cssClass || 'tier-unranked');
+}
 
 function setState(name) {
   for (const s of screens) {
@@ -78,6 +130,69 @@ function setTileStatus(tile, mic, cam) {
   tile.querySelector('.cam-off').classList.toggle('hidden', cam);
 }
 
+function setTileBadge(tile, name, rank) {
+  tile.querySelector('.tile-name').textContent = name;
+  const badge = tile.querySelector('.tile-tier');
+  if (rank && !rank.unscoreable && rank.label) {
+    badge.textContent = rank.label;
+    applyTierClass(badge, rank.cssClass);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function renderNavRank() {
+  navAvatar.textContent = myProfile.name.charAt(0).toUpperCase();
+  navName.textContent = myProfile.name;
+  if (myRank && !myRank.unscoreable && myRank.label) {
+    navTier.textContent = myRank.label;
+    applyTierClass(navTier, myRank.cssClass);
+    navScore.textContent = `${myRank.score}`;
+  } else {
+    navTier.textContent = 'Unranked';
+    applyTierClass(navTier, 'tier-unranked');
+    navScore.textContent = '';
+  }
+}
+
+function renderScoreReveal(rank) {
+  if (rank.unscoreable) {
+    scoreNumber.textContent = '—';
+    scoreTierBadge.textContent = 'Unranked';
+    applyTierClass(scoreTierBadge, 'tier-unranked');
+    scoreBreakdown.replaceChildren();
+    scoreNote.textContent = "We couldn't read enough text from this PDF to score it. You can still join calls with it.";
+    scoreNote.classList.remove('hidden');
+  } else {
+    scoreNumber.textContent = `${rank.score}`;
+    scoreTierBadge.textContent = rank.label;
+    applyTierClass(scoreTierBadge, rank.cssClass);
+    scoreNote.classList.add('hidden');
+    scoreBreakdown.replaceChildren();
+    for (const [key, label, max] of BREAKDOWN_LABELS) {
+      const pts = Math.max(0, rank.breakdown[key] || 0);
+      const row = document.createElement('div');
+      row.className = 'score-row';
+      const rowLabel = document.createElement('span');
+      rowLabel.className = 'score-row-label';
+      rowLabel.textContent = label;
+      const bar = document.createElement('div');
+      bar.className = 'score-bar';
+      const fill = document.createElement('div');
+      fill.className = 'score-bar-fill';
+      fill.style.width = `${Math.min(100, (pts / max) * 100)}%`;
+      bar.appendChild(fill);
+      const rowPts = document.createElement('span');
+      rowPts.className = 'score-row-pts';
+      rowPts.textContent = `${pts}/${max}`;
+      row.append(rowLabel, bar, rowPts);
+      scoreBreakdown.appendChild(row);
+    }
+  }
+  scoreReveal.classList.remove('hidden');
+}
+
 function sendMediaState() {
   if (!localStream) return;
   const audio = localStream.getAudioTracks()[0];
@@ -107,6 +222,8 @@ function resetCall() {
   resetTile(remoteTile);
   setTileStatus(localTile, true, true);
   setTileStatus(remoteTile, true, true);
+  setTileBadge(localTile, 'You', null);
+  setTileBadge(remoteTile, 'Your match', null);
 }
 
 function stopMedia() {
@@ -135,17 +252,27 @@ function resetControls() {
   cameraBtn.title = camLabel;
 }
 
+// Sends the resume bytes and resolves with the server's ack, which doubles as
+// the score/tier result. Deterministic scoring makes re-sends cheap.
+function sendResume(bytes) {
+  return new Promise((resolve) => {
+    socket.emit('resume', bytes, (res) => resolve(res));
+  });
+}
+
 // Every path into matchmaking goes through here: re-sending the stored resume
 // before 'join' means the server always has fresh bytes, even after a reconnect.
-function startMatchmaking() {
-  socket.emit('resume', myResumeBytes, (res) => {
-    if (!res || !res.ok) {
-      showUploadError((res && res.error) || 'Upload failed. Please try again.');
-      setState('upload');
-      return;
-    }
-    socket.emit('join');
-  });
+async function startMatchmaking() {
+  const res = await sendResume(myResumeBytes);
+  if (!res || !res.ok) {
+    showUploadError((res && res.error) || 'Upload failed. Please try again.');
+    setState('upload');
+    return;
+  }
+  myRank = res;
+  localStorage.setItem('cversus-rank', JSON.stringify(myRank));
+  renderNavRank();
+  socket.emit('join');
 }
 
 async function acquireMediaAndJoin() {
@@ -171,6 +298,7 @@ document.getElementById('joinBtn').addEventListener('click', () => {
   if (myResumeBytes) {
     resumeFileName.textContent = myResumeName;
     continueBtn.disabled = false;
+    if (myRank) renderScoreReveal(myRank);
   }
   setState('upload');
 });
@@ -179,6 +307,7 @@ document.getElementById('chooseResumeBtn').addEventListener('click', () => resum
 
 resumeInput.addEventListener('change', async () => {
   clearUploadError();
+  scoreReveal.classList.add('hidden');
   const file = resumeInput.files[0];
   if (!file) return;
   const looksPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
@@ -199,6 +328,24 @@ resumeInput.addEventListener('change', async () => {
   myResumeName = file.name;
   resumeFileName.textContent = file.name;
   continueBtn.disabled = false;
+
+  scoreNumber.textContent = '…';
+  scoreTierBadge.textContent = 'Scoring…';
+  applyTierClass(scoreTierBadge, 'tier-unranked');
+  scoreBreakdown.replaceChildren();
+  scoreNote.classList.add('hidden');
+  scoreReveal.classList.remove('hidden');
+
+  const res = await sendResume(myResumeBytes);
+  if (!res || !res.ok) {
+    showUploadError((res && res.error) || 'Scoring failed. Please try again.');
+    scoreReveal.classList.add('hidden');
+    return;
+  }
+  myRank = res;
+  localStorage.setItem('cversus-rank', JSON.stringify(myRank));
+  renderNavRank();
+  renderScoreReveal(myRank);
 });
 
 continueBtn.addEventListener('click', acquireMediaAndJoin);
@@ -333,7 +480,13 @@ window.addEventListener('resize', () => {
 
 // ---------- Socket events ----------
 
+// Sent on every connect (including reconnects) so the server always has a name for us.
+socket.on('connect', () => {
+  socket.emit('hello', myProfile);
+});
+
 socket.on('waiting', () => {
+  waitingRank.textContent = myRank && !myRank.unscoreable ? `Searching as ${myRank.label}` : '';
   setState('waiting');
 });
 
@@ -348,6 +501,7 @@ socket.on('matched', async ({ initiator }) => {
   setState('in-call');
   dockTile(localTile, myHalf);
   dockTile(remoteTile, peerHalf);
+  setTileBadge(localTile, 'You', myRank);
   sendMediaState();
 
   myViewer = createPdfViewer(myResumeArea);
@@ -379,6 +533,11 @@ socket.on('peer-resume', (bytes) => {
   if (!inCall) return;
   peerViewer = createPdfViewer(peerResumeArea);
   peerViewer.load(bytes).catch((err) => console.error('peer resume render failed:', err));
+});
+
+socket.on('peer-profile', (profile) => {
+  if (!inCall) return;
+  setTileBadge(remoteTile, profile.name, profile);
 });
 
 socket.on('media-state', ({ mic, cam }) => {
@@ -416,3 +575,5 @@ socket.on('disconnect', () => {
   resetControls();
   setState('landing');
 });
+
+renderNavRank();
