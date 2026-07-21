@@ -2,7 +2,7 @@
 
 Resume-versus-resume video calls. Upload your resume, click **Join call**, and you get matched with whoever joins next — if no one is there yet, you wait in a waiting room and connect automatically when the next person arrives.
 
-Built with Node.js, Express, Socket.io (signaling), WebRTC (peer-to-peer video/audio), and pdf.js (in-browser resume rendering). No database — everything lives in server memory for the lifetime of each connection.
+Built with Node.js, Express, Socket.io (signaling), WebRTC (peer-to-peer video/audio), and pdf.js (in-browser resume rendering). Postgres (Neon) persists users, resumes, matches, and achievements; the live video-call matchmaking state itself still lives in server memory for the lifetime of each connection until a later feature migrates it.
 
 ## Run locally
 
@@ -12,6 +12,29 @@ node server.js
 ```
 
 Open http://localhost:3000 in two browser tabs to test a call with yourself.
+
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in real values. `.env` is git-ignored.
+
+| Var | Required for | Purpose |
+|---|---|---|
+| `DATABASE_URL` | database layer | Neon/Supabase Postgres connection string (SSL). |
+| `ADMIN_TOKEN` | database layer | Guards `GET /admin/export`. |
+| `PORT` | optional | Existing; defaults to 3000. |
+
+Without `DATABASE_URL` set, the app still boots and the existing video-call flow works;
+DB-backed features (schema migration, `/admin/export`) are simply unavailable until it's configured.
+
+## Database (Neon) setup
+
+1. Create a free project at https://neon.tech.
+2. In the Neon console, open your project's **Connection Details** and copy the pooled connection
+   string (it includes `?sslmode=require`).
+3. Paste it into `.env` as `DATABASE_URL=...`.
+4. Run `npm start` — on boot the server runs an idempotent migration that creates the `users`,
+   `resumes`, `matches`, and `achievements` tables if they don't already exist.
+5. Generate a random value for `ADMIN_TOKEN` (e.g. `openssl rand -hex 24`) and set it in `.env`.
 
 ## Features
 

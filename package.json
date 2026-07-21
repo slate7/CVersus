@@ -4,14 +4,17 @@
   "description": "1-on-1 video calling website",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node -e \"require('dotenv').config({quiet:true}); require('./db').migrate().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1)})\""
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "pdfjs-dist": "^4.8.69",
+    "pg": "^8.22.0",
     "socket.io": "^4.7.5"
   }
 }

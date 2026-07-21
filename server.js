@@ -1,9 +1,13 @@
+require('dotenv').config({ quiet: true }); // suppress dotenv's stdout promo tips
+
 const express = require('express');
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const { scoreResume } = require('./scorer');
+const db = require('./db');
+const repo = require('./repo');
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
 const SCORE_CACHE_LIMIT = 100;
@@ -16,6 +20,45 @@ const io = new Server(server, {
 
 app.use(express.static('public'));
 app.use('/pdfjs', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build')));
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+app.get('/admin/export', async (req, res) => {
+  if (!process.env.ADMIN_TOKEN || req.query.token !== process.env.ADMIN_TOKEN) {
+    return res.status(404).end();
+  }
+  if (req.query.format === 'zip') {
+    return res.status(501).json({ error: 'zip export is not implemented yet (deferred from F01)' });
+  }
+
+  try {
+    const rows = await repo.exportUsersWithResumes();
+    const header = ['email', 'name', 'elo', 'score', 'uploaded_at', 'filename'];
+    const lines = [header.join(',')];
+    for (const row of rows) {
+      lines.push([
+        csvEscape(row.email),
+        csvEscape(row.name),
+        row.elo,
+        row.score ?? '',
+        row.uploaded_at ? new Date(row.uploaded_at).toISOString() : '',
+        csvEscape(row.filename ?? ''),
+      ].join(','));
+    }
+    const csv = lines.join('\r\n') + '\r\n';
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="cversus-export-${Date.now()}.csv"`);
+    res.status(200).send(csv);
+  } catch (err) {
+    console.error('[admin/export] failed', err);
+    res.status(500).json({ error: 'export failed' });
+  }
+});
 
 // Matchmaking state: one waiting slot + who is paired with whom
 let waitingSocket = null;
@@ -156,6 +199,14 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`CVersus running on http://localhost:${PORT}`);
-});
+
+db.migrate()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`CVersus running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('[db] migrate() failed — server not started', err);
+    process.exit(1);
+  });
