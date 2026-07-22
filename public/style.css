@@ -173,6 +173,47 @@ button.danger:hover {
   background: var(--danger-hover);
 }
 
+/* Sign-in link styled as a primary button (it's an <a>, not a <button>). */
+a.primary {
+  display: inline-block;
+  font-size: 1rem;
+  padding: 12px 28px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+a.primary:hover {
+  background: var(--accent-hover);
+}
+
+/* Google profile photo fills the avatar circle when present. */
+.avatar.has-image {
+  background-size: cover;
+  background-position: center;
+  color: transparent;
+}
+
+/* Sign-out: quiet inline text button in the nav. */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  background: none;
+  color: var(--text);
+  text-decoration: underline;
+}
+
 #waitingVideo {
   width: 100%;
   max-width: 420px;
