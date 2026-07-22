@@ -105,6 +105,11 @@ body {
   display: none;
 }
 
+/* Generic hide utility — wins over element-specific display rules (e.g. a.primary). */
+.hidden {
+  display: none !important;
+}
+
 h1 {
   font-size: 2.75rem;
   letter-spacing: -0.5px;
