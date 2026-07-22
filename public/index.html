@@ -9,18 +9,20 @@
 <body>
   <header id="navbar">
     <div class="nav-logo">CVersus</div>
-    <div class="nav-profile">
+    <div class="nav-profile hidden" id="navProfile">
       <span id="navAvatar" class="avatar"></span>
       <span id="navName"></span>
       <span id="navTier" class="tier-badge tier-unranked">Unranked</span>
       <span id="navScore" class="nav-score"></span>
+      <button id="logoutBtn" class="link-btn">Sign out</button>
     </div>
   </header>
 
   <div id="screen-landing" class="screen">
     <h1>CVersus</h1>
     <p>Resume-versus-resume video calls. Upload your resume, get matched, and talk it out side by side.</p>
-    <button id="joinBtn" class="primary">Join call</button>
+    <a id="signInBtn" class="primary hidden" href="/auth/google">Sign in with Google</a>
+    <button id="joinBtn" class="primary hidden">Join call</button>
   </div>
 
   <div id="screen-upload" class="screen hidden">

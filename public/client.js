@@ -1,6 +1,8 @@
 import { createPdfViewer } from './pdf-viewer.js';
 
-const socket = io();
+// Connect only after /api/me confirms auth, so we never trip the server's socket auth on the
+// signed-out landing page.
+const socket = io({ autoConnect: false });
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 
@@ -13,22 +15,7 @@ let peerViewer = null;
 let inCall = false;
 let myRank = null; // { score, tier, division, label, breakdown, unscoreable } or null (unranked)
 
-// ---------- Anonymous identity, persisted in this browser ----------
-
-function loadProfile() {
-  try {
-    const stored = JSON.parse(localStorage.getItem('cversus-profile'));
-    if (stored && stored.id && stored.name) return stored;
-  } catch (err) {
-    // fall through to generate a fresh one
-  }
-  const profile = {
-    id: crypto.randomUUID(),
-    name: `Candidate#${1000 + Math.floor(Math.random() * 9000)}`,
-  };
-  localStorage.setItem('cversus-profile', JSON.stringify(profile));
-  return profile;
-}
+// ---------- Identity, from the authenticated Google session ----------
 
 function loadStoredRank() {
   try {
@@ -38,7 +25,8 @@ function loadStoredRank() {
   }
 }
 
-const myProfile = loadProfile();
+// Populated from /api/me once signed in. { id, name, avatarUrl }.
+let myProfile = null;
 myRank = loadStoredRank();
 
 const screens = [
@@ -66,10 +54,14 @@ const myResumeArea = document.getElementById('myResumeArea');
 const peerResumeArea = document.getElementById('peerResumeArea');
 const localTile = document.getElementById('localTile');
 const remoteTile = document.getElementById('remoteTile');
+const navProfile = document.getElementById('navProfile');
 const navAvatar = document.getElementById('navAvatar');
 const navName = document.getElementById('navName');
 const navTier = document.getElementById('navTier');
 const navScore = document.getElementById('navScore');
+const signInBtn = document.getElementById('signInBtn');
+const joinBtn = document.getElementById('joinBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 const waitingRank = document.getElementById('waitingRank');
 const scoreReveal = document.getElementById('scoreReveal');
 const scoreNumber = document.getElementById('scoreNumber');
@@ -143,7 +135,16 @@ function setTileBadge(tile, name, rank) {
 }
 
 function renderNavRank() {
-  navAvatar.textContent = myProfile.name.charAt(0).toUpperCase();
+  if (!myProfile) return;
+  if (myProfile.avatarUrl) {
+    navAvatar.textContent = '';
+    navAvatar.style.backgroundImage = `url("${myProfile.avatarUrl}")`;
+    navAvatar.classList.add('has-image');
+  } else {
+    navAvatar.style.backgroundImage = '';
+    navAvatar.classList.remove('has-image');
+    navAvatar.textContent = (myProfile.name || '?').charAt(0).toUpperCase();
+  }
   navName.textContent = myProfile.name;
   if (myRank && !myRank.unscoreable && myRank.label) {
     navTier.textContent = myRank.label;
@@ -480,11 +481,6 @@ window.addEventListener('resize', () => {
 
 // ---------- Socket events ----------
 
-// Sent on every connect (including reconnects) so the server always has a name for us.
-socket.on('connect', () => {
-  socket.emit('hello', myProfile);
-});
-
 socket.on('waiting', () => {
   waitingRank.textContent = myRank && !myRank.unscoreable ? `Searching as ${myRank.label}` : '';
   setState('waiting');
@@ -576,4 +572,51 @@ socket.on('disconnect', () => {
   setState('landing');
 });
 
-renderNavRank();
+// A rejected/expired session surfaces here (server socketAuth throws 'unauthenticated').
+socket.on('connect_error', () => {
+  showSignedOut();
+});
+
+// ---------- Auth bootstrap ----------
+
+function showSignedOut() {
+  myProfile = null;
+  navProfile.classList.add('hidden');
+  signInBtn.classList.remove('hidden');
+  joinBtn.classList.add('hidden');
+  setState('landing');
+}
+
+function showSignedIn(user) {
+  myProfile = { id: user.id, name: user.name || 'Candidate', avatarUrl: user.avatar_url || null };
+  signInBtn.classList.add('hidden');
+  joinBtn.classList.remove('hidden');
+  navProfile.classList.remove('hidden');
+  renderNavRank();
+  socket.connect();
+}
+
+logoutBtn.addEventListener('click', async () => {
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+  } catch (err) {
+    // ignore — reload lands on the signed-out landing regardless
+  }
+  window.location.reload();
+});
+
+async function init() {
+  try {
+    const res = await fetch('/api/me');
+    if (res.ok) {
+      showSignedIn(await res.json());
+    } else {
+      showSignedOut();
+    }
+  } catch (err) {
+    console.error('/api/me failed:', err);
+    showSignedOut();
+  }
+}
+
+init();

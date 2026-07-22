@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const { scoreResume } = require('./scorer');
 const db = require('./db');
 const repo = require('./repo');
+const auth = require('./auth');
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
 const SCORE_CACHE_LIMIT = 100;
@@ -17,6 +18,17 @@ const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 12 * 1024 * 1024, // headroom over the 10 MB resume limit
 });
+
+// Auth: session (Postgres-backed) + passport must be wired before the routes and static shell.
+auth.configurePassport();
+app.use(auth.sessionMiddleware);
+app.use(auth.passport.initialize());
+app.use(auth.passport.session());
+auth.mountAuthRoutes(app); // /auth/google, /auth/google/callback, /auth/logout, /api/me
+
+// Share the same session with Socket.io so every socket is bound to a logged-in user.
+io.engine.use(auth.sessionMiddleware);
+io.use(auth.socketAuth);
 
 app.use(express.static('public'));
 app.use('/pdfjs', express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'build')));
@@ -92,11 +104,10 @@ function publicProfile(id) {
 }
 
 io.on('connection', (socket) => {
-  console.log(`connected: ${socket.id}`);
+  console.log(`connected: ${socket.id} (user ${socket.user.id})`);
 
-  socket.on('hello', (payload) => {
-    profiles.set(socket.id, { name: sanitizeName(payload && payload.name) });
-  });
+  // Identity now comes from the authenticated session, not a client-supplied `hello`.
+  profiles.set(socket.id, { name: sanitizeName(socket.user.name) });
 
   socket.on('resume', async (data, ack) => {
     const reply = typeof ack === 'function' ? ack : () => {};

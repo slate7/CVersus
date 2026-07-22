@@ -21,10 +21,14 @@ Copy `.env.example` to `.env` and fill in real values. `.env` is git-ignored.
 |---|---|---|
 | `DATABASE_URL` | database layer | Neon/Supabase Postgres connection string (SSL). |
 | `ADMIN_TOKEN` | database layer | Guards `GET /admin/export`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in | OAuth 2.0 Web client credentials. |
+| `SESSION_SECRET` | Google sign-in | Signs session cookies (long random string). |
+| `APP_URL` | Google sign-in | Base URL for the OAuth callback (e.g. `http://localhost:3000`). |
 | `PORT` | optional | Existing; defaults to 3000. |
 
-Without `DATABASE_URL` set, the app still boots and the existing video-call flow works;
-DB-backed features (schema migration, `/admin/export`) are simply unavailable until it's configured.
+Sign-in and Postgres-backed sessions require `DATABASE_URL` plus the Google/session vars above.
+With those unset the server still boots, but visitors can't sign in (and sockets, which now require an
+authenticated session, are refused).
 
 ## Database (Neon) setup
 
@@ -36,6 +40,18 @@ DB-backed features (schema migration, `/admin/export`) are simply unavailable un
    `resumes`, `matches`, and `achievements` tables if they don't already exist.
 5. Generate a random value for `ADMIN_TOKEN` (e.g. `openssl rand -hex 24`) and set it in `.env`.
 
+## Google OAuth setup
+
+1. In the [Google Cloud Console](https://console.cloud.google.com), go to **APIs & Services →
+   Credentials** and create an **OAuth 2.0 Client ID** of type **Web application**.
+2. Under **Authorized redirect URIs**, add `${APP_URL}/auth/google/callback` — for local dev that's
+   `http://localhost:3000/auth/google/callback`. Add your deployed URL's callback too when hosting.
+3. Copy the Client ID and secret into `.env` as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, and set
+   `APP_URL` to the matching base URL.
+4. Set `SESSION_SECRET` to a long random string (e.g. `openssl rand -hex 24`).
+5. Sessions are stored in Postgres (a `session` table is created automatically on first run), so
+   logins survive restarts and redeploys.
+
 ## Features
 
 - **Resume upload** — a PDF resume (max 10 MB) is required before joining; it's scored instantly and kept for the session so you never have to re-upload.
@@ -44,7 +60,7 @@ DB-backed features (schema migration, `/admin/export`) are simply unavailable un
 - **Faces-first video** — each person's video is docked large above their own resume, and is draggable/resizable.
 - **Mute / camera controls** — icon buttons with visual on/off state, synced to the other person's tile.
 - **Ranked tiers** — resumes are scored with a deterministic rubric (open source, projects, experience, skills, plus bonuses/deductions) inspired by HackerRank's published hiring rubric. Scores map to Bronze/Silver/Gold/Platinum/Diamond/Champion tiers with divisions, shown in a navbar profile chip and on each video tile during a call.
-- **Anonymous identity** — an auto-generated name (e.g. "Candidate#4821") is stored in your browser; no accounts or sign-up.
+- **Google sign-in** — sign in with a Google account; your name and photo come from your profile, and your session is stored in Postgres so you stay signed in across restarts. Every video-call socket is bound to your authenticated user.
 - **"Find new call"** when the other person leaves.
 
 ## Deployment
